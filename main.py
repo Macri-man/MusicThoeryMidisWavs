@@ -1,58 +1,59 @@
-# midi_scales_and_arpeggios.py
+# midi_chords_inversions_arpeggios.py
 import pretty_midi
 import os
 
 # Folders
-SCALE_DIR = "midi_scales"
+CHORD_DIR = "midi_chords"
 ARPEGGIO_DIR = "midi_arpeggios"
-os.makedirs(SCALE_DIR, exist_ok=True)
+os.makedirs(CHORD_DIR, exist_ok=True)
 os.makedirs(ARPEGGIO_DIR, exist_ok=True)
 
-# Note numbers for C4 = 60
+# Notes
 NOTE_NUMS = {
     "C": 60, "C#": 61, "D": 62, "D#": 63,
     "E": 64, "F": 65, "F#": 66, "G": 67,
     "G#": 68, "A": 69, "A#": 70, "B": 71
 }
 
-# Major scale intervals (Ionian)
-MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11]
+# Chord formulas in semitones
+CHORD_TYPES = {
+    "major": [0, 4, 7],
+    "minor": [0, 3, 7],
+    "diminished": [0, 3, 6],
+    "augmented": [0, 4, 8]
+}
 
-def build_scale(root_note, intervals):
-    """Return MIDI notes for a scale starting at root"""
-    root_midi = NOTE_NUMS[root_note]
-    return [root_midi + i for i in intervals]
+ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
-def create_scale_midi(scale_name, notes, beats_per_note=1, octaves=1):
-    """Create MIDI file for the scale"""
-    pm = pretty_midi.PrettyMIDI()
-    piano = pretty_midi.Instrument(program=0)
-    time = 0
-    for _ in range(octaves):
-        for n in notes:
-            note = pretty_midi.Note(
-                velocity=100, pitch=n, start=time, end=time + beats_per_note
-            )
-            piano.notes.append(note)
-            time += beats_per_note
-    pm.instruments.append(piano)
-    pm.write(os.path.join(SCALE_DIR, f"{scale_name}.mid"))
-    print(f"Saved scale: {scale_name}.mid")
+def build_chord(root, formula):
+    root_midi = NOTE_NUMS[root]
+    return [root_midi + interval for interval in formula]
 
-def create_arpeggio_midi(scale_name, notes, bars=16):
-    """Create arpeggio MIDI file with triads from scale"""
+def invert_chord(notes, inversion=0):
+    """Move the lowest note(s) up an octave for inversion"""
+    n = notes.copy()
+    for _ in range(inversion):
+        n[0] += 12
+        n = n[1:] + [n[0]]
+    return sorted(n)
+
+def create_chord_midi(root, chord_type, notes):
+    """Single file with all inversions as 16-bar arpeggio"""
     pm = pretty_midi.PrettyMIDI()
     piano = pretty_midi.Instrument(program=0)
     time = 0
     beats_per_bar = 4
-    triads = []
-    for i in range(len(notes) - 2):
-        triads.append([notes[i], notes[i+1], notes[i+2]])
+    total_bars = 16
+    total_notes = beats_per_bar * total_bars
     note_index = 0
-    total_notes = bars * beats_per_bar
+
+    # Prepare all inversions
+    inversions = [invert_chord(notes, i) for i in range(len(notes))]
+
+    # Cycle through inversions
     while note_index < total_notes:
-        for triad in triads:
-            for n in triad:
+        for inv in inversions:
+            for n in inv:
                 if note_index >= total_notes:
                     break
                 note = pretty_midi.Note(
@@ -63,18 +64,16 @@ def create_arpeggio_midi(scale_name, notes, bars=16):
                 note_index += 1
             if note_index >= total_notes:
                 break
+
     pm.instruments.append(piano)
-    pm.write(os.path.join(ARPEGGIO_DIR, f"{scale_name}_arpeggio.mid"))
-    print(f"Saved arpeggio: {scale_name}_arpeggio.mid")
+    filename = f"{root}_{chord_type}.mid"
+    pm.write(os.path.join(ARPEGGIO_DIR, filename))
+    print(f"Saved {filename}")
 
-# Generate all modes of C major
-ROOTS = ["C", "D", "E", "F", "G", "A", "B"]
-for i, root in enumerate(ROOTS):
-    # Mode intervals (rotate major scale)
-    intervals = MAJOR_INTERVALS[i:] + [x + 12 for x in MAJOR_INTERVALS[:i]]
-    scale_notes = build_scale(root, intervals)
-    mode_name = f"{root}_mode"
-    create_scale_midi(mode_name, scale_notes, beats_per_note=1, octaves=1)
-    create_arpeggio_midi(mode_name, scale_notes, bars=16)
+# Generate all chords
+for root in ROOTS:
+    for ctype, formula in CHORD_TYPES.items():
+        notes = build_chord(root, formula)
+        create_chord_midi(root, ctype, notes)
 
-print("All modes and arpeggios created in folders:", SCALE_DIR, ARPEGGIO_DIR)
+print("All chord arpeggios with inversions created in", ARPEGGIO_DIR)
