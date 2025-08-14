@@ -77,41 +77,60 @@ def chord_inversions(formula):
 CHORD_INVERSIONS = {name: chord_inversions(intervals)
                     for name, intervals in CHORD_FORMULAS.items()}
 
+
+def create_midi(notes, filename, rhythm_pattern="straight", velocity=100, instrument_name="Acoustic Grand Piano"):
+    """Generate a MIDI file from a list of MIDI note numbers."""
+    pm = pretty_midi.PrettyMIDI()
+    instrument = pretty_midi.Instrument(program=pretty_midi.instrument_name_to_program(instrument_name))
+    time = 0.0
+    durations = RHYTHM_PATTERNS.get(rhythm_pattern, [1])  # fallback to quarter notes
+
+    for i, note_num in enumerate(notes):
+        duration = durations[i % len(durations)]
+        note = pretty_midi.Note(velocity=velocity,
+                                pitch=note_num,
+                                start=time,
+                                end=time + duration)
+        instrument.notes.append(note)
+        time += duration
+
+    pm.instruments.append(instrument)
+    pm.write(filename)
+
 # ----------------------
-# Create Folder Structure
+# Generate Scales + Modes + Arpeggios
 # ----------------------
-os.makedirs(BASE_DIR, exist_ok=True)
+for scale_name, intervals in SCALE_INTERVALS.items():
+    for root_name, root_midi in NOTE_NUMS.items():
+        # Scale notes
+        scale_notes = [root_midi + interval for interval in intervals]
+        scale_folder = os.path.join(BASE_DIR, "Scales", scale_name, root_name)
 
-# Main folders
-for f in FOLDERS:
-    folder_path = os.path.join(BASE_DIR, f)
-    os.makedirs(folder_path, exist_ok=True)
+        # Save scale MIDI
+        create_midi(scale_notes, os.path.join(scale_folder, f"{root_name}_{scale_name}.mid"))
 
-# Scales → each scale name → each root → modes + arpeggios
-for scale_name in SCALE_INTERVALS:
-    scale_path = os.path.join(BASE_DIR, "Scales", scale_name)
-    os.makedirs(scale_path, exist_ok=True)
+        # Modes
+        mode_folder = os.path.join(scale_folder, "Modes")
+        for mode_name, mode_intervals in SCALE_INTERVALS.items():
+            mode_notes = [root_midi + interval for interval in mode_intervals]
+            create_midi(mode_notes, os.path.join(mode_folder, mode_name, f"{root_name}_{mode_name}.mid"))
 
-    for root in ROOTS:
-        root_path = os.path.join(scale_path, root)
-        os.makedirs(root_path, exist_ok=True)
+        # Arpeggios (root, 3rd, 5th, 7th)
+        arp_folder = os.path.join(scale_folder, "Arpeggios")
+        arp_notes = scale_notes[::2]  # simple skip-1 arpeggio
+        create_midi(arp_notes, os.path.join(arp_folder, f"{root_name}_{scale_name}_arpeggio.mid"))
 
-        # Modes inside each root
-        mode_folder = os.path.join(root_path, "Modes")
-        os.makedirs(mode_folder, exist_ok=True)
-        for mode_name in SCALE_INTERVALS:
-            os.makedirs(os.path.join(mode_folder, mode_name), exist_ok=True)
+# ----------------------
+# Generate Chords + Inversions
+# ----------------------
+for chord_name, intervals in CHORD_FORMULAS.items():
+    for root_name, root_midi in NOTE_NUMS.items():
+        chord_path = os.path.join(BASE_DIR, "Chords", chord_name)
 
-        # Arpeggios inside each root
-        arp_folder = os.path.join(root_path, "Arpeggios")
-        os.makedirs(arp_folder, exist_ok=True)
+        inversions = chord_inversions(intervals)
+        for inv_num, inv_formula in enumerate(inversions):
+            inv_notes = [root_midi + n for n in inv_formula]
+            inv_folder = os.path.join(chord_path, f"Inversion_{inv_num}")
+            create_midi(inv_notes, os.path.join(inv_folder, f"{root_name}_{chord_name}_inv{inv_num}.mid"))
 
-# Chords → each chord → each inversion
-for chord_name in CHORD_FORMULAS:
-    chord_path = os.path.join(BASE_DIR, "Chords", chord_name)
-    os.makedirs(chord_path, exist_ok=True)
-
-    for inversion_num in range(len(CHORD_FORMULAS[chord_name])):
-        os.makedirs(os.path.join(chord_path, f"Inversion_{inversion_num}"), exist_ok=True)
-
-print("MIDI Library folder structure created successfully!")
+print("✅ All MIDI files generated and saved into the library!")
