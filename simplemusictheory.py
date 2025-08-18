@@ -1,4 +1,5 @@
 import os
+import pretty_midi
 
 BASE_DIR = "MIDI_Library"
 
@@ -80,6 +81,7 @@ CHORD_INVERSIONS = {name: chord_inversions(intervals)
 
 def create_midi(notes, filename, rhythm_pattern="straight", velocity=100, instrument_name="Acoustic Grand Piano"):
     """Generate a MIDI file from a list of MIDI note numbers."""
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     pm = pretty_midi.PrettyMIDI()
     instrument = pretty_midi.Instrument(program=pretty_midi.instrument_name_to_program(instrument_name))
     time = 0.0
